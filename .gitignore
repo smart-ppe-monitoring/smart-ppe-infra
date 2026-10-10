@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+*.log
+traefik_certs/
+acme.json
+data/
+.DS_Store
+Thumbs.db

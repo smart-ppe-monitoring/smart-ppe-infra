@@ -1,0 +1,202 @@
+# =============================================================================
+# Traefik v3 - Dynamic Configuration (Hot-Reload)
+# File: traefik/dynamic.yml
+# =============================================================================
+# Cấu hình động — Traefik tự reload khi file này thay đổi (không cần restart).
+# Định nghĩa:
+#   • Middlewares: security-headers, global-ratelimit, request-id, inject-gateway-secret
+#   • Routers & Services cho 6 Microservices (Database-per-Service Architecture)
+#   • TLS options (TLS 1.2 / TLS 1.3)
+# =============================================================================
+
+http:
+  middlewares:
+    # ── 1. Security Headers ──────────────────────────────────────────────────
+    security-headers:
+      headers:
+        contentTypeNosniff: true
+        browserXssFilter: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=()"
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+    # ── 2. Global Rate Limiting ───────────────────────────────────────────────
+    global-ratelimit:
+      rateLimit:
+        average: 100
+        burst: 200
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # ── 3. Request ID Injection ────────────────────────────────────────────────
+    request-id:
+      headers:
+        customResponseHeaders:
+          X-Gateway: "Traefik-v3" # Traefik tự sinh UUIDv4 nếu client chưa gửi
+
+    # ── 4. Gateway Secret Injection ───────────────────────────────────────────
+    inject-gateway-secret:
+      headers:
+        customRequestHeaders:
+          X-Gateway-Secret: "PLACEHOLDER_REPLACE_AT_DEPLOY"
+
+    # ── 5. Compress Response ──────────────────────────────────────────────────
+    compress-response:
+      compress:
+        minResponseBodyBytes: 1024
+
+  # ── Routers & Services (Định tuyến 6 Microservices PPE Monitoring) ─────────
+  routers:
+    # 1. Site Service (:8891)
+    sites:
+      rule: "PathPrefix(`/api/v1/sites`) || PathPrefix(`/api/v1/zones`) || PathPrefix(`/api/v1/restricted-areas`)"
+      entryPoints:
+        - web
+        - websecure
+      service: site-service
+      priority: 100
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+    # 2. Camera Service (:8892)
+    cameras:
+      rule: "PathPrefix(`/api/v1/cameras`) || PathPrefix(`/api/v1/camera-streams`)"
+      entryPoints:
+        - web
+        - websecure
+      service: camera-service
+      priority: 100
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+    # 3. Incident Service (:8893)
+    incidents:
+      rule: "PathPrefix(`/api/v1/incidents`) || PathPrefix(`/api/v1/evidences`)"
+      entryPoints:
+        - web
+        - websecure
+      service: incident-service
+      priority: 100
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+    # 4. Notification Service (:8889)
+    notifications:
+      rule: "PathPrefix(`/api/v1/notifications`)"
+      entryPoints:
+        - web
+        - websecure
+      service: notification-service
+      priority: 100
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+    # 5. Reporting Service (:8894)
+    reporting:
+      rule: "PathPrefix(`/api/v1/reports`) || PathPrefix(`/api/v1/statistics`) || PathPrefix(`/api/v1/ai-models`)"
+      entryPoints:
+        - web
+        - websecure
+      service: reporting-service
+      priority: 100
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+    # 6. Media / Storage Service (:8890)
+    media:
+      rule: "PathPrefix(`/api/v1/files`)"
+      entryPoints:
+        - web
+        - websecure
+      service: media-service
+      priority: 100
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+    # 7. Identity & Core API Catch-All (:9999) - Auth, Users, RBAC, System, Docs, Health
+    app-api:
+      rule: "PathPrefix(`/api/v1`) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
+      entryPoints:
+        - web
+        - websecure
+      service: app-api
+      priority: 1
+      middlewares:
+        - security-headers
+        - global-ratelimit
+        - request-id
+        - inject-gateway-secret
+
+  # ── Load Balancers & Backend Destinations ─────────────────────────────────
+  services:
+    site-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8891"
+
+    camera-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8892"
+
+    incident-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8893"
+
+    notification-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8889"
+
+    reporting-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8894"
+
+    media-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8890"
+
+    app-api:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:9999"
+
+# ── TLS Options ──────────────────────────────────────────────────────────────
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+    modern:
+      minVersion: VersionTLS13
