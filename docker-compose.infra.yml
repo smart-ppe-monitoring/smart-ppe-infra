@@ -121,7 +121,7 @@ services:
 
   # ── 5. MinIO Object Storage (Evidence Snapshots & Videos) ───────────────────
   ppe-minio:
-    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    image: minio/minio:latest
     container_name: ppe_minio
     restart: unless-stopped
     ports:
@@ -136,7 +136,7 @@ services:
     networks:
       - ppe_infra_net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 15s
       timeout: 5s
       retries: 5
