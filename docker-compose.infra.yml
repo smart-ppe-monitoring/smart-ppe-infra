@@ -139,7 +139,7 @@ services:
   # Đăng nhập mặc định: minio_admin / minio_admin_secret
   # ────────────────────────────────────────────────────────────────────────────
   ppe-minio:
-    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    image: minio/minio:latest
     container_name: ppe_minio
     restart: unless-stopped
     # Profile minio: Chỉ kích hoạt khi chạy offline với: docker compose --profile minio up -d
