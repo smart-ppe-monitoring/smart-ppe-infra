@@ -1,0 +1,15 @@
+ALTER TABLE "users" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "roles" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "permissions" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "role_permissions" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "audit_logs" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "refresh_tokens" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "user_socials" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "verification_tokens" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "password_reset_tokens" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "user_devices" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "maintenance_configs" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "api_keys" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "webhook_endpoints" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "webhook_deliveries" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
+ALTER TABLE "system_configs" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();

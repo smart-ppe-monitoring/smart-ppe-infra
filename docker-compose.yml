@@ -186,6 +186,8 @@ services:
     restart: unless-stopped
     ports:
       - "9999:9999"
+    volumes:
+      - ../smart-ppe-identity-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-identity-service/.env
     environment:
@@ -213,6 +215,8 @@ services:
     restart: unless-stopped
     ports:
       - "8891:8891"
+    volumes:
+      - ../smart-ppe-site-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-site-service/.env
     environment:
@@ -242,6 +246,8 @@ services:
     restart: unless-stopped
     ports:
       - "8892:8892"
+    volumes:
+      - ../smart-ppe-camera-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-camera-service/.env
     environment:
@@ -271,6 +277,8 @@ services:
     restart: unless-stopped
     ports:
       - "8893:8893"
+    volumes:
+      - ../smart-ppe-incident-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-incident-service/.env
     environment:
@@ -305,6 +313,8 @@ services:
     restart: unless-stopped
     ports:
       - "8890:8890"
+    volumes:
+      - ../smart-ppe-media-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-media-service/.env
     environment:
@@ -336,6 +346,8 @@ services:
     restart: unless-stopped
     ports:
       - "8894:8894"
+    volumes:
+      - ../smart-ppe-reporting-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-reporting-service/.env
     environment:
@@ -365,6 +377,8 @@ services:
     restart: unless-stopped
     ports:
       - "8889:8889"
+    volumes:
+      - ../smart-ppe-notification-service/keys:/app/keys:ro
     env_file:
       - ../smart-ppe-notification-service/.env
     environment:
