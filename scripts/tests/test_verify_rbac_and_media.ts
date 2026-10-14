@@ -94,7 +94,7 @@ async function verify() {
 
   // 5. Admin calling Media Service (:8890/api/v1/files/upload-url)
   console.log("\n5. Admin calling Media Service (POST :8890/api/v1/files/upload-url)...");
-  const adminPayload = JSON.stringify({ email: "admin@template.local", password: "Admin@123456" });
+  const adminPayload = JSON.stringify({ email: "admin@ppe.local", password: "Admin@123456" });
   const adminLoginRes = await request(
     {
       hostname: "localhost",

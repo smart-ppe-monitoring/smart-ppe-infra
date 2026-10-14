@@ -95,7 +95,7 @@ async function runTests() {
   let accessToken = "";
   try {
     const loginPayload = JSON.stringify({
-      email: "admin@template.local",
+      email: "admin@ppe.local",
       password: "Admin@123456",
     });
 

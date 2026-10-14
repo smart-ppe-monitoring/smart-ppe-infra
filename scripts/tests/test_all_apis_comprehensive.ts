@@ -116,7 +116,7 @@ async function runComprehensiveTests() {
   try {
     // 2.1 Login Admin
     const loginRes = await request(9999, "/api/v1/auth/login", "POST", {
-      email: "admin@template.local",
+      email: "admin@ppe.local",
       password: "Admin@123456",
     });
     if (loginRes.statusCode === 200) {
