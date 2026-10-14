@@ -57,11 +57,19 @@ CREATE DATABASE ppe_notification_db OWNER ppe_notification_user;
 GRANT ALL PRIVILEGES ON DATABASE ppe_notification_db TO ppe_notification_user;
 
 -- ────────────────────────────────────────────────────────────────────────────
+-- ────────────────────────────────────────────────────────────────────────────
 -- 6. Reporting Service
 -- ────────────────────────────────────────────────────────────────────────────
 CREATE USER ppe_reporting_user WITH PASSWORD 'ppe_reporting_dev_pass' CREATEDB; -- [DEV ONLY]
 CREATE DATABASE ppe_reporting_db OWNER ppe_reporting_user;
 GRANT ALL PRIVILEGES ON DATABASE ppe_reporting_db TO ppe_reporting_user;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 7. Media Service
+-- ────────────────────────────────────────────────────────────────────────────
+CREATE USER ppe_media_user WITH PASSWORD 'ppe_media_dev_pass' CREATEDB; -- [DEV ONLY]
+CREATE DATABASE ppe_media_db OWNER ppe_media_user;
+GRANT ALL PRIVILEGES ON DATABASE ppe_media_db TO ppe_media_user;
 
 -- ============================================================================
 -- REVOKE CONNECT FROM PUBLIC: Ngăn cross-database access
@@ -76,6 +84,7 @@ REVOKE CONNECT ON DATABASE ppe_camera_db FROM PUBLIC;
 REVOKE CONNECT ON DATABASE ppe_incident_db FROM PUBLIC;
 REVOKE CONNECT ON DATABASE ppe_notification_db FROM PUBLIC;
 REVOKE CONNECT ON DATABASE ppe_reporting_db FROM PUBLIC;
+REVOKE CONNECT ON DATABASE ppe_media_db FROM PUBLIC;
 
 GRANT CONNECT ON DATABASE ppe_identity_db TO ppe_identity_user;
 GRANT CONNECT ON DATABASE ppe_site_db TO ppe_site_user;
@@ -83,6 +92,7 @@ GRANT CONNECT ON DATABASE ppe_camera_db TO ppe_camera_user;
 GRANT CONNECT ON DATABASE ppe_incident_db TO ppe_incident_user;
 GRANT CONNECT ON DATABASE ppe_notification_db TO ppe_notification_user;
 GRANT CONNECT ON DATABASE ppe_reporting_db TO ppe_reporting_user;
+GRANT CONNECT ON DATABASE ppe_media_db TO ppe_media_user;
 
 -- ============================================================================
 -- Kích hoạt uuid-ossp extension trên mỗi database (cho uuid_generate_v7)
@@ -118,4 +128,9 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 \c ppe_reporting_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+\c ppe_media_db
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 
