@@ -1,76 +1,68 @@
-version: "3.8"
-
 # =============================================================================
-# Phase 4: API Gateway & Reverse Proxy với Traefik v3
+# SMART PPE MONITORING - FULL SYSTEM DOCKER COMPOSE
 # =============================================================================
-# Traefik đảm nhiệm toàn bộ biên giới hệ thống:
-#   • SSL/TLS Termination (Let's Encrypt ACME) trong production
-#   • Routing: /api/v1/auth/* → app-api, /api/v1/files/* → app-api, v.v.
-#   • Global Rate Limiting (100 req/s burst, 50 req/s sustained)
-#   • Tự động inject X-Request-Id (UUIDv4 — Traefik native) và x-gateway-secret
-#   • Cloudflare Turnstile: xác thực được xử lý ở application layer
-#   • Dashboard: http://localhost:8080 (chỉ expose trong dev, tắt trong production)
+# Chạy 100% toàn bộ hệ thống từ thư mục smart-ppe-infra:
+#   docker compose up -d --build
 #
-# Kiến trúc internal network:
-#   Internet → Traefik (:80/:443) → app-api (:9999) / app-worker (không expose)
-#   Redis, Postgres: không expose ra ngoài, chỉ dùng trong docker internal network
+# Với chính sách 'restart: unless-stopped', sau khi chạy lệnh trên 1 lần,
+# từ lần sau mỗi khi MỞ DOCKER DESKTOP, toàn bộ 13 container sẽ TỰ ĐỘNG CHẠY!
 # =============================================================================
+
+networks:
+  ppe_infra_net:
+    name: ppe_infra_net
+    driver: bridge
+
+volumes:
+  ppe_pgdata:
+    driver: local
+  ppe_kafka_data:
+    driver: local
+  ppe_minio_data:
+    driver: local
+  ppe_redis_data:
+    driver: local
 
 services:
-  # ── Layer 0: API Gateway / Reverse Proxy ──────────────────────────────────
-  traefik:
-    image: traefik:v3.3
-    container_name: app_gateway
+  # ─────────────────────────────────────────────────────────────────────────────
+  # TẦNG 1: HẠ TẦNG DÙNG CHUNG (INFRASTRUCTURE BACKBONE)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  # ── 1. PostgreSQL 16 (6 Logical Databases) ──────────────────────────────────
+  ppe-postgres:
+    image: postgres:16-alpine
+    container_name: ppe_postgres
     restart: unless-stopped
-    ports:
-      - "80:80" # HTTP (redirect sang HTTPS trong production)
-      - "443:443" # HTTPS (TLS termination)
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      # Cấp quyền đọc Docker socket để tự động discover services
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      # File cấu hình tĩnh Traefik
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      # File cấu hình động (middlewares, routing rules)
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-      # Thư mục lưu TLS certs Let's Encrypt (chỉ production)
-      - traefik_certs:/certs
     environment:
-      # Truyền secret nội bộ để inject vào header x-gateway-secret
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
+      POSTGRES_USER: ${PPE_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${PPE_POSTGRES_PASSWORD:-postgres_master_dev}
+      TZ: "Asia/Ho_Chi_Minh"
+    ports:
+      - "${PPE_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - ppe_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/01-init-multiple-dbs.sql:ro
+      - ./scripts/init-uuidv7.sql:/docker-entrypoint-initdb.d/02-init-uuidv7.sql:ro
     networks:
-      - gateway_net
-      - internal_net
-    labels:
-      - "traefik.enable=true"
-      # Dashboard route (chỉ dùng dev)
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
-      - "traefik.http.routers.dashboard.service=api@internal"
-      - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
-      # Basic auth cho dashboard: admin/admin (chỉ dev — trong prod dùng .env)
-      - "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$xyz$$placeholder"
-      # Inject secret nội bộ x-gateway-secret từ environment vào request tới microservices
-      - "traefik.http.middlewares.inject-gateway-secret.headers.customrequestheaders.x-gateway-secret=${GATEWAY_INTERNAL_SECRET:-}"
-      - "traefik.http.middlewares.inject-gateway-secret.headers.customrequestheaders.x-gateway=Traefik-v3"
+      - ppe_infra_net
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
-      interval: 30s
+      test: ["CMD-SHELL", "pg_isready -U ${PPE_POSTGRES_USER:-postgres}"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
       start_period: 10s
 
-  # ── Layer 1: Redis (Message Broker & Cache) ────────────────────────────────
-  redis:
+  # ── 2. Redis 7 (Cache, Dynamic Invalidation & SSE Session) ──────────────────
+  ppe-redis:
     image: redis:7-alpine
     container_name: app_redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6381}:6379"
-    networks:
-      - internal_net
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - redis_data:/data
+      - ppe_redis_data:/data
+    networks:
+      - ppe_infra_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -78,435 +70,319 @@ services:
       retries: 5
       start_period: 5s
 
-  # ── Layer 2a: API Server (HTTP Requests Only) ──────────────────────────────
-  app-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: app_api
+  # ── 3. Apache Kafka: Event Bus (KRaft Mode - Zero Zookeeper) ───────────────
+  ppe-kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ppe_kafka
     restart: unless-stopped
-    env_file:
-      - .env
+    ports:
+      - "${PPE_KAFKA_PORT:-9092}:9092"
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${PORT:-9999}"
-      IDENTITY_DATABASE_URL: "${IDENTITY_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      # Trust Traefik như một hop proxy
-      TRUST_PROXY: "1"
-      # Gateway secret để verify request từ Traefik
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-    # app-api KHÔNG expose port ra ngoài — chỉ Traefik mới được gọi
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@ppe-kafka:29093"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://ppe-kafka:29092,PLAINTEXT_HOST://localhost:${PPE_KAFKA_PORT:-9092}"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${PORT:-9999}"
-    depends_on:
-      redis:
-        condition: service_healthy
-      traefik:
-        condition: service_healthy
+      - ppe_kafka_data:/var/lib/kafka/data
     networks:
-      - internal_net
-    command: ["node", "dist/api.server.js"]
+      - ppe_infra_net
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${PORT:-9999}/api/v1/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      # ── Router: API routes ──────────────────────────────────────────────────
-      - "traefik.http.routers.app-api.rule=PathPrefix(`/api/v1`) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
-      - "traefik.http.routers.app-api.entrypoints=web,websecure"
-      # ── Service: backend port ───────────────────────────────────────────────
-      - "traefik.http.services.app-api.loadbalancer.server.port=${PORT:-9999}"
-      - "traefik.http.services.app-api.loadbalancer.healthcheck.path=/api/v1/health"
-      - "traefik.http.services.app-api.loadbalancer.healthcheck.interval=30s"
-      # ── Middleware chain: security headers → rate limit → request ID → gateway secret ──
-      # Định nghĩa inject-gateway-secret qua Docker labels để Docker Compose interpolate ${GATEWAY_INTERNAL_SECRET}
-      - "traefik.http.middlewares.inject-gateway-secret.headers.customrequestheaders.X-Gateway-Secret=${GATEWAY_INTERNAL_SECRET:-}"
-      - "traefik.http.routers.app-api.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
 
-  # ── Layer 2b: Background Worker (BullMQ Queues & Cron) ────────────────────
-  app-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: app_worker
+  # ── 4. Kafka UI Console ────────────────────────────────────────────────────
+  ppe-kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ppe_kafka_ui
     restart: unless-stopped
-    env_file:
-      - .env
+    ports:
+      - "${PPE_KAFKA_UI_PORT:-8088}:8080"
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      IDENTITY_DATABASE_URL: "${IDENTITY_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      NOTIFICATION_SERVICE_STANDALONE: "true"
-      MEDIA_SERVICE_STANDALONE: "true"
+      KAFKA_CLUSTERS_0_NAME: "ppe-local-cluster"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "ppe-kafka:29092"
+      DYNAMIC_CONFIG_ENABLED: "true"
     depends_on:
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./keys:/app/keys:ro
-    networks:
-      - internal_net
-    # Worker KHÔNG expose port (không nhận HTTP) — không có Traefik label
-    command: ["node", "dist/worker.server.js"]
-
-  # ── Layer 2c: Notification Microservice (Phase 5: Satellite Service) ──────
-  notification-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: notification_service
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${NOTIFICATION_PORT:-8889}"
-      NOTIFICATION_DATABASE_URL: "${NOTIFICATION_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      TRUST_PROXY: "1"
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-      NOTIFICATION_SERVICE_STANDALONE: "true"
-      AUTH_JWKS_URL: "http://app-api:9999/.well-known/jwks.json"
-    volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${NOTIFICATION_PORT:-8889}"
-    depends_on:
-      redis:
-        condition: service_healthy
-      traefik:
+      ppe-kafka:
         condition: service_healthy
     networks:
-      - internal_net
-    command: ["node", "dist/notification.server.js"]
+      - ppe_infra_net
+
+  # ── 5. MinIO Object Storage (Evidence Snapshots & Videos) ───────────────────
+  ppe-minio:
+    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    container_name: ppe_minio
+    restart: unless-stopped
+    ports:
+      - "${PPE_MINIO_API_PORT:-9000}:9000"
+      - "${PPE_MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${PPE_MINIO_ROOT_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${PPE_MINIO_ROOT_PASSWORD:-minio_admin_secret}
+    command: server /data --console-address ":9001"
+    volumes:
+      - ppe_minio_data:/data
+    networks:
+      - ppe_infra_net
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${NOTIFICATION_PORT:-8889}/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      # ── Router: Notification Microservice Routes (Priority 100 > app-api catch-all) ──
-      - "traefik.http.routers.notifications.rule=PathPrefix(`/api/v1/notifications`)"
-      - "traefik.http.routers.notifications.priority=100"
-      - "traefik.http.routers.notifications.entrypoints=web,websecure"
-      # ── Service: Notification Service Port & Healthcheck ──────────────────
-      - "traefik.http.services.notifications.loadbalancer.server.port=${NOTIFICATION_PORT:-8889}"
-      - "traefik.http.services.notifications.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.notifications.loadbalancer.healthcheck.interval=30s"
-      # ── Middleware chain ──────────────────────────────────────────────────
-      - "traefik.http.routers.notifications.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  # ── Layer 2d: Media & Storage Microservice (Phase 6: Satellite Service) ──
-  media-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: media_service
+  # ── 6. Traefik v3 API Gateway & Ingress ─────────────────────────────────────
+  traefik:
+    image: traefik:v3.3
+    container_name: app_gateway
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${MEDIA_PORT:-8890}"
-      MEDIA_DATABASE_URL: "${MEDIA_DATABASE_URL:-}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      TRUST_PROXY: "1"
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-      MEDIA_SERVICE_STANDALONE: "true"
-      AUTH_JWKS_URL: "http://app-api:9999/.well-known/jwks.json"
-      R2_ACCOUNT_ID: "${R2_ACCOUNT_ID:-}"
-      R2_BUCKET_NAME: "${R2_BUCKET_NAME:-}"
-      R2_ACCESS_KEY_ID: "${R2_ACCESS_KEY_ID:-}"
-      R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"
-      R2_PUBLIC_BASE_URL: "${R2_PUBLIC_BASE_URL:-}"
+    command:
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--ping=true"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${MEDIA_PORT:-8890}"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - ppe_infra_net
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # TẦNG 2: 7 BACKEND MICROSERVICES NODE.JS
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  # ── 7. Identity Service (:9999) ────────────────────────────────────────────
+  identity-service:
+    build:
+      context: ../smart-ppe-identity-service
+      dockerfile: Dockerfile
+    container_name: identity_service
+    restart: unless-stopped
+    ports:
+      - "9999:9999"
+    env_file:
+      - ../smart-ppe-identity-service/.env
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=9999
+      - IDENTITY_DATABASE_URL=postgresql://ppe_identity_user:ppe_identity_dev_pass@ppe-postgres:5432/ppe_identity_db?schema=public
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
     depends_on:
-      redis:
+      ppe-postgres:
         condition: service_healthy
-      traefik:
+      ppe-redis:
         condition: service_healthy
     networks:
-      - internal_net
-    command: ["node", "dist/media.server.js"]
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${MEDIA_PORT:-8890}/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      # ── Router: Media Microservice Routes (Priority 100 > app-api catch-all) ──
-      - "traefik.http.routers.media.rule=PathPrefix(`/api/v1/files`)"
-      - "traefik.http.routers.media.priority=100"
-      - "traefik.http.routers.media.entrypoints=web,websecure"
-      # ── Service: Media Service Port & Healthcheck ──────────────────────────
-      - "traefik.http.services.media.loadbalancer.server.port=${MEDIA_PORT:-8890}"
-      - "traefik.http.services.media.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.media.loadbalancer.healthcheck.interval=30s"
-      # ── Middleware chain ──────────────────────────────────────────────────
-      - "traefik.http.routers.media.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
+      - ppe_infra_net
 
-  # ── Layer 2e: Site Microservice (:8891) ──────────────────────────────────
+  # ── 8. Site Service (:8891) ────────────────────────────────────────────────
   site-service:
     build:
-      context: .
+      context: ../smart-ppe-site-service
       dockerfile: Dockerfile
     container_name: site_service
     restart: unless-stopped
+    ports:
+      - "8891:8891"
     env_file:
-      - .env
+      - ../smart-ppe-site-service/.env
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${SITE_PORT:-8891}"
-      SITE_DATABASE_URL: "${SITE_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      TRUST_PROXY: "1"
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-      AUTH_JWKS_URL: "http://app-api:9999/.well-known/jwks.json"
-    volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${SITE_PORT:-8891}"
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8891
+      - SITE_PORT=8891
+      - SITE_DATABASE_URL=postgresql://ppe_site_user:ppe_site_dev_pass@ppe-postgres:5432/ppe_site_db?schema=public
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
     depends_on:
-      redis:
+      ppe-postgres:
         condition: service_healthy
-      traefik:
-        condition: service_healthy
+      identity-service:
+        condition: service_started
     networks:
-      - internal_net
-    command: ["node", "dist/site.server.js"]
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${SITE_PORT:-8891}/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      - "traefik.http.routers.sites.rule=PathPrefix(`/api/v1/sites`) || PathPrefix(`/api/v1/zones`) || PathPrefix(`/api/v1/restricted-areas`) || PathPrefix(`/api/v1/safety-rules`)"
-      - "traefik.http.routers.sites.priority=100"
-      - "traefik.http.routers.sites.entrypoints=web,websecure"
-      - "traefik.http.services.sites.loadbalancer.server.port=${SITE_PORT:-8891}"
-      - "traefik.http.services.sites.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.sites.loadbalancer.healthcheck.interval=30s"
-      - "traefik.http.routers.sites.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
+      - ppe_infra_net
 
-  # ── Layer 2f: Camera Microservice (:8892) ────────────────────────────────
+  # ── 9. Camera Service (:8892) ──────────────────────────────────────────────
   camera-service:
     build:
-      context: .
+      context: ../smart-ppe-camera-service
       dockerfile: Dockerfile
     container_name: camera_service
     restart: unless-stopped
+    ports:
+      - "8892:8892"
     env_file:
-      - .env
+      - ../smart-ppe-camera-service/.env
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${CAMERA_PORT:-8892}"
-      CAMERA_DATABASE_URL: "${CAMERA_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      TRUST_PROXY: "1"
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-      AUTH_JWKS_URL: "http://app-api:9999/.well-known/jwks.json"
-    volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${CAMERA_PORT:-8892}"
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8892
+      - CAMERA_PORT=8892
+      - CAMERA_DATABASE_URL=postgresql://ppe_camera_user:ppe_camera_dev_pass@ppe-postgres:5432/ppe_camera_db?schema=public
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
     depends_on:
-      redis:
+      ppe-postgres:
         condition: service_healthy
-      traefik:
-        condition: service_healthy
+      identity-service:
+        condition: service_started
     networks:
-      - internal_net
-    command: ["node", "dist/camera.server.js"]
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${CAMERA_PORT:-8892}/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      - "traefik.http.routers.cameras.rule=PathPrefix(`/api/v1/cameras`) || PathPrefix(`/api/v1/camera-streams`)"
-      - "traefik.http.routers.cameras.priority=100"
-      - "traefik.http.routers.cameras.entrypoints=web,websecure"
-      - "traefik.http.services.cameras.loadbalancer.server.port=${CAMERA_PORT:-8892}"
-      - "traefik.http.services.cameras.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.cameras.loadbalancer.healthcheck.interval=30s"
-      - "traefik.http.routers.cameras.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
+      - ppe_infra_net
 
-  # ── Layer 2g: Incident Microservice (:8893) ──────────────────────────────
+  # ── 10. Incident Service (:8893) ───────────────────────────────────────────
   incident-service:
     build:
-      context: .
+      context: ../smart-ppe-incident-service
       dockerfile: Dockerfile
     container_name: incident_service
     restart: unless-stopped
+    ports:
+      - "8893:8893"
     env_file:
-      - .env
+      - ../smart-ppe-incident-service/.env
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${INCIDENT_PORT:-8893}"
-      INCIDENT_DATABASE_URL: "${INCIDENT_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      TRUST_PROXY: "1"
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-      AUTH_JWKS_URL: "http://app-api:9999/.well-known/jwks.json"
-    volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${INCIDENT_PORT:-8893}"
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8893
+      - INCIDENT_PORT=8893
+      - INCIDENT_DATABASE_URL=postgresql://ppe_incident_user:ppe_incident_dev_pass@ppe-postgres:5432/ppe_incident_db?schema=public
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - PPE_KAFKA_BROKERS=ppe-kafka:29092
+      - MINIO_ENDPOINT=ppe-minio
+      - MINIO_PORT=9000
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
     depends_on:
-      redis:
+      ppe-postgres:
         condition: service_healthy
-      traefik:
+      ppe-kafka:
         condition: service_healthy
+      identity-service:
+        condition: service_started
     networks:
-      - internal_net
-    command: ["node", "dist/incident.server.js"]
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${INCIDENT_PORT:-8893}/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      - "traefik.http.routers.incidents.rule=PathPrefix(`/api/v1/incidents`) || PathPrefix(`/api/v1/evidences`)"
-      - "traefik.http.routers.incidents.priority=100"
-      - "traefik.http.routers.incidents.entrypoints=web,websecure"
-      - "traefik.http.services.incidents.loadbalancer.server.port=${INCIDENT_PORT:-8893}"
-      - "traefik.http.services.incidents.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.incidents.loadbalancer.healthcheck.interval=30s"
-      - "traefik.http.routers.incidents.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
+      - ppe_infra_net
 
-  # ── Layer 2h: Reporting Microservice (:8894) ─────────────────────────────
+  # ── 11. Media Service (:8890) ──────────────────────────────────────────────
+  media-service:
+    build:
+      context: ../smart-ppe-media-service
+      dockerfile: Dockerfile
+    container_name: media_service
+    restart: unless-stopped
+    ports:
+      - "8890:8890"
+    env_file:
+      - ../smart-ppe-media-service/.env
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8890
+      - MEDIA_PORT=8890
+      - MEDIA_DATABASE_URL=postgresql://ppe_media_user:ppe_media_dev_pass@ppe-postgres:5432/ppe_media_db?schema=public
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - S3_ENDPOINT=ppe-minio
+      - S3_PORT=9000
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
+    depends_on:
+      ppe-postgres:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+    networks:
+      - ppe_infra_net
+
+  # ── 12. Reporting Service (:8894) ──────────────────────────────────────────
   reporting-service:
     build:
-      context: .
+      context: ../smart-ppe-reporting-service
       dockerfile: Dockerfile
     container_name: reporting_service
     restart: unless-stopped
+    ports:
+      - "8894:8894"
     env_file:
-      - .env
+      - ../smart-ppe-reporting-service/.env
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${REPORTING_PORT:-8894}"
-      REPORTING_DATABASE_URL: "${REPORTING_DATABASE_URL}"
-      REDIS_URL: ""
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-      TRUST_PROXY: "1"
-      GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-}"
-      AUTH_JWKS_URL: "http://app-api:9999/.well-known/jwks.json"
-    volumes:
-      - ./keys:/app/keys:ro
-    expose:
-      - "${REPORTING_PORT:-8894}"
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8894
+      - REPORTING_PORT=8894
+      - REPORTING_DATABASE_URL=postgresql://ppe_reporting_user:ppe_reporting_dev_pass@ppe-postgres:5432/ppe_reporting_db?schema=public
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
     depends_on:
-      redis:
+      ppe-postgres:
         condition: service_healthy
-      traefik:
-        condition: service_healthy
+      identity-service:
+        condition: service_started
     networks:
-      - internal_net
-    command: ["node", "dist/reporting.server.js"]
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:${REPORTING_PORT:-8894}/health'', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=internal_net"
-      - "traefik.http.routers.reporting.rule=PathPrefix(`/api/v1/reports`) || PathPrefix(`/api/v1/statistics`) || PathPrefix(`/api/v1/ai-models`)"
-      - "traefik.http.routers.reporting.priority=100"
-      - "traefik.http.routers.reporting.entrypoints=web,websecure"
-      - "traefik.http.services.reporting.loadbalancer.server.port=${REPORTING_PORT:-8894}"
-      - "traefik.http.services.reporting.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.reporting.loadbalancer.healthcheck.interval=30s"
-      - "traefik.http.routers.reporting.middlewares=security-headers@file,global-ratelimit@file,request-id@file,inject-gateway-secret"
+      - ppe_infra_net
 
-networks:
-  # Network expose ra ngoài (Traefik <-> Internet)
-  gateway_net:
-    driver: bridge
-  # Network nội bộ (app-api, app-worker, redis)
-  internal_net:
-    name: internal_net
-    driver: bridge
-
-volumes:
-  redis_data:
-    driver: local
-  traefik_certs:
-    driver: local
+  # ── 13. Notification Service (:8889) ───────────────────────────────────────
+  notification-service:
+    build:
+      context: ../smart-ppe-notification-service
+      dockerfile: Dockerfile
+    container_name: notification_service
+    restart: unless-stopped
+    ports:
+      - "8889:8889"
+    env_file:
+      - ../smart-ppe-notification-service/.env
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8889
+      - NOTIFICATION_PORT=8889
+      - NOTIFICATION_DATABASE_URL=postgresql://ppe_notification_user:ppe_notification_dev_pass@ppe-postgres:5432/ppe_notification_db?schema=public
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_HOST=app_redis
+      - REDIS_PORT=6379
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - TRUST_PROXY=1
+    depends_on:
+      ppe-postgres:
+        condition: service_healthy
+      ppe-redis:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+    networks:
+      - ppe_infra_net
