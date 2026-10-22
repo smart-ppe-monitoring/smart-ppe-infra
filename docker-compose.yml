@@ -123,7 +123,7 @@ services:
 
   # ── 5. MinIO Object Storage (Evidence Snapshots & Videos) ───────────────────
   ppe-minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: ppe_minio
     restart: unless-stopped
     ports:
