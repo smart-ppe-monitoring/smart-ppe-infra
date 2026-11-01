@@ -29,7 +29,10 @@ async function verify() {
 
   // 1. Login as SAFETY MANAGER
   console.log("1. Logging in as Safety Manager (manager@ppe.local)...");
-  const mgrPayload = JSON.stringify({ email: "manager@ppe.local", password: "Manager@123456" });
+  const mgrPayload = JSON.stringify({
+    email: process.env.TEST_MANAGER_EMAIL || "manager@ppe.local",
+    password: process.env.TEST_MANAGER_PASSWORD || "Manager@123456",
+  });
   const mgrLoginRes = await request(
     {
       hostname: "localhost",
@@ -94,7 +97,10 @@ async function verify() {
 
   // 5. Admin calling Media Service (:8890/api/v1/files/upload-url)
   console.log("\n5. Admin calling Media Service (POST :8890/api/v1/files/upload-url)...");
-  const adminPayload = JSON.stringify({ email: "admin@ppe.local", password: "Admin@123456" });
+  const adminPayload = JSON.stringify({
+    email: process.env.TEST_ADMIN_EMAIL || "admin@ppe.local",
+    password: process.env.TEST_ADMIN_PASSWORD || "Admin@123456",
+  });
   const adminLoginRes = await request(
     {
       hostname: "localhost",

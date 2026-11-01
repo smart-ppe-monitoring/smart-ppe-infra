@@ -76,12 +76,22 @@ async function ensureInfra(): Promise<void> {
     console.log("[ORCHESTRATOR] ✅ Hạ tầng PostgreSQL :5433 đã sẵn sàng.");
   }
 
-  // Đảm bảo @smart-ppe/common đã được build
+  // [SEC-17] Đảm bảo PostgreSQL sẵn sàng, dừng nếu hạ tầng thất bại
+  const isDbReady = await checkPort(5433);
+  if (!isDbReady) {
+    console.error("[ORCHESTRATOR FATAL] PostgreSQL :5433 không sẵn sàng sau thời gian chờ. Dừng khởi động hệ thống!");
+    process.exit(1);
+  }
+
+  // Đảm bảo @smart-ppe/common đã được build [SEC-27]
   try {
     const contractsDir = path.resolve(workspaceRoot, "smart-ppe-shared-contracts");
-    execSync("pnpm build", { cwd: contractsDir, stdio: "ignore" });
+    execSync("pnpm build", { cwd: contractsDir, stdio: "inherit" });
     console.log("[ORCHESTRATOR] ✅ Thư viện @smart-ppe/common đã sẵn sàng.");
-  } catch {}
+  } catch (err: any) {
+    console.error("[ORCHESTRATOR FATAL] Không thể biên dịch @smart-ppe/common:", err?.message || err);
+    process.exit(1);
+  }
 }
 
 function checkHealth(port: number, healthPath: string): Promise<boolean> {
@@ -190,10 +200,17 @@ async function startAll() {
 
     await new Promise((r) => setTimeout(r, 2000));
   }
+
+  // [SEC-18] Xử lý timeout nếu không phải tất cả dịch vụ đều sẵn sàng
+  const notReady = SERVICES.filter((s) => !readyMap.get(s.name));
+  if (notReady.length > 0) {
+    console.error(`\n[ORCHESTRATOR ERROR] Hết thời gian chờ (60s). Các dịch vụ chưa sẵn sàng: ${notReady.map((s) => s.name).join(", ")}`);
+    cleanup(1);
+  }
 }
 
 // Bắt sự kiện tắt an toàn (Graceful Shutdown)
-function cleanup() {
+function cleanup(exitCode: number = 0) {
   console.log("\n[ORCHESTRATOR] Đang dừng tất cả các microservices...");
   for (const { name, proc } of children) {
     try {
@@ -203,13 +220,13 @@ function cleanup() {
     } catch {}
   }
   console.log("[ORCHESTRATOR] Đã dừng tất cả các dịch vụ an toàn.");
-  process.exit(0);
+  process.exit(exitCode);
 }
 
-process.on("SIGINT", cleanup);
-process.on("SIGTERM", cleanup);
+process.on("SIGINT", () => cleanup(0));
+process.on("SIGTERM", () => cleanup(0));
 
 startAll().catch((err) => {
   console.error("[ORCHESTRATOR FATAL ERROR]:", err);
-  cleanup();
+  cleanup(1);
 });

@@ -22,6 +22,8 @@ volumes:
     driver: local
   ppe_redis_data:
     driver: local
+  ppe_traefik_certs:
+    driver: local
 
 services:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -33,6 +35,8 @@ services:
     image: postgres:16-alpine
     container_name: ppe_postgres
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.5
     environment:
       POSTGRES_USER: ${PPE_POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${PPE_POSTGRES_PASSWORD:-postgres_master_dev}
@@ -43,6 +47,7 @@ services:
       - ppe_pgdata:/var/lib/postgresql/data
       - ./scripts/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/01-init-multiple-dbs.sql:ro
       - ./scripts/init-uuidv7.sql:/docker-entrypoint-initdb.d/02-init-uuidv7.sql:ro
+      - ./scripts/fix_defaults.sql:/docker-entrypoint-initdb.d/03-fix-defaults.sql:ro
     networks:
       - ppe_infra_net
     healthcheck:
@@ -57,6 +62,8 @@ services:
     image: redis:7-alpine
     container_name: app_redis
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
@@ -75,8 +82,10 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: ppe_kafka
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
     ports:
-      - "${PPE_KAFKA_PORT:-9092}:9092"
+      - "127.0.0.1:${PPE_KAFKA_PORT:-9092}:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: "broker,controller"
@@ -92,7 +101,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     volumes:
       - ppe_kafka_data:/var/lib/kafka/data
     networks:
@@ -109,8 +118,10 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: ppe_kafka_ui
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
     ports:
-      - "${PPE_KAFKA_UI_PORT:-8088}:8080"
+      - "127.0.0.1:${PPE_KAFKA_UI_PORT:-8088}:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: "ppe-local-cluster"
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "ppe-kafka:29092"
@@ -126,9 +137,11 @@ services:
     image: cgr.dev/chainguard/minio:latest
     container_name: ppe_minio
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
     ports:
-      - "${PPE_MINIO_API_PORT:-9000}:9000"
-      - "${PPE_MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${PPE_MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${PPE_MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
       MINIO_ROOT_USER: ${PPE_MINIO_ROOT_USER:-minio_admin}
       MINIO_ROOT_PASSWORD: ${PPE_MINIO_ROOT_PASSWORD:-minio_admin_secret}
@@ -149,6 +162,8 @@ services:
     image: traefik:v3.3
     container_name: app_gateway
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     command:
       - "--api.insecure=true"
       - "--api.dashboard=true"
@@ -158,12 +173,13 @@ services:
       - "--entrypoints.web.address=:80"
     ports:
       - "80:80"
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ppe_traefik_certs:/certs
     networks:
       - ppe_infra_net
     healthcheck:
@@ -184,19 +200,21 @@ services:
       dockerfile: Dockerfile
     container_name: identity_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "9999:9999"
+      - "127.0.0.1:9999:9999"
     volumes:
       - ../smart-ppe-identity-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-identity-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=9999
       - IDENTITY_DATABASE_URL=postgresql://ppe_identity_user:ppe_identity_dev_pass@ppe-postgres:5432/ppe_identity_db?schema=public
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -213,12 +231,14 @@ services:
       dockerfile: Dockerfile
     container_name: site_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "8891:8891"
+      - "127.0.0.1:8891:8891"
     volumes:
       - ../smart-ppe-site-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-site-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8891
@@ -227,7 +247,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -244,12 +264,14 @@ services:
       dockerfile: Dockerfile
     container_name: camera_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "8892:8892"
+      - "127.0.0.1:8892:8892"
     volumes:
       - ../smart-ppe-camera-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-camera-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8892
@@ -258,7 +280,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -275,12 +297,14 @@ services:
       dockerfile: Dockerfile
     container_name: incident_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "8893:8893"
+      - "127.0.0.1:8893:8893"
     volumes:
       - ../smart-ppe-incident-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-incident-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8893
@@ -292,7 +316,7 @@ services:
       - PPE_KAFKA_BROKERS=ppe-kafka:29092
       - MINIO_ENDPOINT=ppe-minio
       - MINIO_PORT=9000
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -311,12 +335,14 @@ services:
       dockerfile: Dockerfile
     container_name: media_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "8890:8890"
+      - "127.0.0.1:8890:8890"
     volumes:
       - ../smart-ppe-media-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-media-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8890
@@ -327,7 +353,7 @@ services:
       - REDIS_PORT=6379
       - S3_ENDPOINT=ppe-minio
       - S3_PORT=9000
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -344,12 +370,14 @@ services:
       dockerfile: Dockerfile
     container_name: reporting_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "8894:8894"
+      - "127.0.0.1:8894:8894"
     volumes:
       - ../smart-ppe-reporting-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-reporting-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8894
@@ -358,7 +386,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -375,12 +403,14 @@ services:
       dockerfile: Dockerfile
     container_name: notification_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
-      - "8889:8889"
+      - "127.0.0.1:8889:8889"
     volumes:
       - ../smart-ppe-notification-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-notification-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8889
@@ -389,7 +419,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:

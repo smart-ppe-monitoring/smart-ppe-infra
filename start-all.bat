@@ -7,6 +7,6 @@ echo  🚀 SMART PPE MONITORING - KHỞI ĐỘNG HỆ THỐNG CHẾ ĐỘ LAI (H
 echo ==============================================================================
 echo.
 
-call npx -y tsx scripts/start_all_services.ts
+call pnpm exec tsx scripts/start_all_services.ts
 
 pause

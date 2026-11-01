@@ -20,7 +20,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_identity_user;
 
 \c ppe_site_db
@@ -43,7 +44,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_site_user;
 
 \c ppe_camera_db
@@ -66,7 +68,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_camera_user;
 
 \c ppe_incident_db
@@ -89,7 +92,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_incident_user;
 
 \c ppe_reporting_db
@@ -112,7 +116,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_reporting_user;
 
 \c ppe_notification_db
@@ -135,7 +140,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_notification_user;
 
 \c ppe_media_db
@@ -158,5 +164,6 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 ALTER FUNCTION uuid_generate_v7() OWNER TO ppe_media_user;

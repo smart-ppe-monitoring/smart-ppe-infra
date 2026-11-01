@@ -23,11 +23,18 @@ const dynamicYmlPath = path.resolve(process.cwd(), "traefik/dynamic.yml");
 if (fs.existsSync(dynamicYmlPath)) {
   let content = fs.readFileSync(dynamicYmlPath, "utf8");
 
-  // Update X-Gateway-Secret
-  content = content.replace(
-    /X-Gateway-Secret:\s*".*"/g,
-    `X-Gateway-Secret: "${secret}"`,
-  );
+  // Update or insert X-Gateway-Secret [SEC-04]
+  if (/X-Gateway-Secret:\s*".*"/g.test(content)) {
+    content = content.replace(
+      /X-Gateway-Secret:\s*".*"/g,
+      `X-Gateway-Secret: "${secret}"`,
+    );
+  } else if (/inject-gateway-secret:\s*\r?\n\s*headers:\s*\r?\n\s*customRequestHeaders:/g.test(content)) {
+    content = content.replace(
+      /(inject-gateway-secret:\s*\r?\n\s*headers:\s*\r?\n\s*customRequestHeaders:)/g,
+      `$1\n          X-Gateway-Secret: "${secret}"`,
+    );
+  }
 
   // Fix X-Request-Id stripping: Traefik setting customRequestHeaders X-Request-Id: "" strips client trace IDs!
   // Instead, allow request ID to pass through and add custom response header X-Gateway: "Traefik-v3"
