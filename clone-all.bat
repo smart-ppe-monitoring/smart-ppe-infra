@@ -25,8 +25,12 @@ for %%R in (%REPOS%) do (
     if exist %%R (
         echo [Bỏ qua] Thư mục %%R đã tồn tại. Đang cập nhật branch %BRANCH%...
         pushd %%R
-        git checkout %BRANCH% > nul 2>&1
-        git pull origin %BRANCH%
+        git checkout %BRANCH%
+        if %errorlevel% neq 0 (
+            echo [LỖI] Không thể chuyển sang branch %BRANCH% trong %%R! Vui lòng kiểm tra uncommitted changes.
+        ) else (
+            git pull origin %BRANCH%
+        )
         popd
     ) else (
         echo [Đang tải] %%R từ %ORG%/%%R.git...

@@ -35,6 +35,8 @@ services:
     image: postgres:16-alpine
     container_name: ppe_postgres
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.5
     environment:
       POSTGRES_USER: ${PPE_POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${PPE_POSTGRES_PASSWORD:-postgres_master_dev}
@@ -60,6 +62,8 @@ services:
     image: redis:7-alpine
     container_name: app_redis
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
@@ -78,6 +82,8 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: ppe_kafka
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
     ports:
       - "127.0.0.1:${PPE_KAFKA_PORT:-9092}:9092"
     environment:
@@ -95,7 +101,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     volumes:
       - ppe_kafka_data:/var/lib/kafka/data
     networks:
@@ -112,6 +118,8 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: ppe_kafka_ui
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
     ports:
       - "127.0.0.1:${PPE_KAFKA_UI_PORT:-8088}:8080"
     environment:
@@ -129,6 +137,8 @@ services:
     image: cgr.dev/chainguard/minio:latest
     container_name: ppe_minio
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
     ports:
       - "127.0.0.1:${PPE_MINIO_API_PORT:-9000}:9000"
       - "127.0.0.1:${PPE_MINIO_CONSOLE_PORT:-9001}:9001"
@@ -152,6 +162,8 @@ services:
     image: traefik:v3.3
     container_name: app_gateway
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     command:
       - "--api.insecure=true"
       - "--api.dashboard=true"
@@ -188,6 +200,8 @@ services:
       dockerfile: Dockerfile
     container_name: identity_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:9999:9999"
     volumes:
@@ -217,6 +231,8 @@ services:
       dockerfile: Dockerfile
     container_name: site_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:8891:8891"
     volumes:
@@ -248,6 +264,8 @@ services:
       dockerfile: Dockerfile
     container_name: camera_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:8892:8892"
     volumes:
@@ -279,6 +297,8 @@ services:
       dockerfile: Dockerfile
     container_name: incident_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:8893:8893"
     volumes:
@@ -315,6 +335,8 @@ services:
       dockerfile: Dockerfile
     container_name: media_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:8890:8890"
     volumes:
@@ -348,6 +370,8 @@ services:
       dockerfile: Dockerfile
     container_name: reporting_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:8894:8894"
     volumes:
@@ -379,6 +403,8 @@ services:
       dockerfile: Dockerfile
     container_name: notification_service
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "127.0.0.1:8889:8889"
     volumes:

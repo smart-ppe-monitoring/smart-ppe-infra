@@ -125,7 +125,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 \c ppe_site_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -147,7 +148,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 \c ppe_camera_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -169,7 +171,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 \c ppe_incident_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -191,7 +194,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 \c ppe_notification_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -213,7 +217,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 \c ppe_reporting_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -235,7 +240,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 \c ppe_media_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -257,7 +263,8 @@ BEGIN
 END
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SET search_path = pg_catalog, public;
 
 
 

@@ -8,13 +8,14 @@ echo ===========================================================================
 echo.
 
 echo [1/2] Đang dừng hạ tầng Docker Compose...
+docker compose -f docker-compose.yml down > nul 2>&1
 docker compose -f docker-compose.infra.yml down
 
 echo.
 echo [2/2] Đang giải phóng các tiến trình Node.js trên các cổng microservices...
 for %%P in (9999 8891 8892 8893 8890 8894 8889) do (
     for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":%%P" ^| findstr "LISTENING"') do (
-        taskkill /f /pid %%a > nul 2>&1
+        taskkill /f /fi "IMAGENAME eq node.exe" /pid %%a > nul 2>&1
     )
 )
 

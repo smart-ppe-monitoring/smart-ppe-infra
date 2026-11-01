@@ -60,7 +60,10 @@ async function runDeepTests() {
 
   // 3. Login as Admin to get valid token
   console.log("\n--- TEST 3: ADMIN LOGIN & RETRIEVE ENTITIES ---");
-  const adminLoginPayload = JSON.stringify({ email: "admin@ppe.local", password: "Admin@123456" });
+  const adminLoginPayload = JSON.stringify({
+    email: process.env.TEST_ADMIN_EMAIL || "admin@ppe.local",
+    password: process.env.TEST_ADMIN_PASSWORD || "Admin@123456",
+  });
   const adminLoginRes = await request(
     {
       hostname: "localhost",
@@ -173,7 +176,10 @@ async function runDeepTests() {
 
   // 8. Test RBAC Restriction (Login as normal USER with no admin rights)
   console.log("\n--- TEST 8: RBAC RESTRICTION ON STANDARD USER ---");
-  const userLoginPayload = JSON.stringify({ email: "user@ppe.local", password: "User@123456" });
+  const userLoginPayload = JSON.stringify({
+    email: process.env.TEST_USER_EMAIL || "user@ppe.local",
+    password: process.env.TEST_USER_PASSWORD || "User@123456",
+  });
   const userLoginRes = await request(
     {
       hostname: "localhost",

@@ -14,6 +14,9 @@ http:
     # ── 1. Security Headers ──────────────────────────────────────────────────
     security-headers:
       headers:
+        stsSeconds: 31536000 # [SEC-22] 1-year HSTS
+        stsIncludeSubdomains: true
+        stsPreload: true
         contentTypeNosniff: true
         browserXssFilter: true
         frameDeny: true
@@ -78,6 +81,8 @@ http:
         - websecure
       service: site-service
       priority: 100
+      tls:
+        options: modern # [SEC-21] Enforce TLS 1.3 modern options
       middlewares:
         - cors-headers
         - security-headers
@@ -93,6 +98,8 @@ http:
         - websecure
       service: camera-service
       priority: 100
+      tls:
+        options: modern # [SEC-21]
       middlewares:
         - cors-headers
         - security-headers
@@ -108,6 +115,8 @@ http:
         - websecure
       service: incident-service
       priority: 100
+      tls:
+        options: modern # [SEC-21]
       middlewares:
         - cors-headers
         - security-headers
@@ -123,6 +132,8 @@ http:
         - websecure
       service: notification-service
       priority: 100
+      tls:
+        options: modern # [SEC-21]
       middlewares:
         - cors-headers
         - security-headers
@@ -138,6 +149,8 @@ http:
         - websecure
       service: reporting-service
       priority: 100
+      tls:
+        options: modern # [SEC-21]
       middlewares:
         - cors-headers
         - security-headers
@@ -153,6 +166,8 @@ http:
         - websecure
       service: media-service
       priority: 100
+      tls:
+        options: modern # [SEC-21]
       middlewares:
         - cors-headers
         - security-headers
@@ -168,6 +183,8 @@ http:
         - websecure
       service: app-api
       priority: 1
+      tls:
+        options: modern # [SEC-21]
       middlewares:
         - cors-headers
         - security-headers

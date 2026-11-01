@@ -83,12 +83,15 @@ async function ensureInfra(): Promise<void> {
     process.exit(1);
   }
 
-  // Đảm bảo @smart-ppe/common đã được build
+  // Đảm bảo @smart-ppe/common đã được build [SEC-27]
   try {
     const contractsDir = path.resolve(workspaceRoot, "smart-ppe-shared-contracts");
-    execSync("pnpm build", { cwd: contractsDir, stdio: "ignore" });
+    execSync("pnpm build", { cwd: contractsDir, stdio: "inherit" });
     console.log("[ORCHESTRATOR] ✅ Thư viện @smart-ppe/common đã sẵn sàng.");
-  } catch {}
+  } catch (err: any) {
+    console.error("[ORCHESTRATOR FATAL] Không thể biên dịch @smart-ppe/common:", err?.message || err);
+    process.exit(1);
+  }
 }
 
 function checkHealth(port: number, healthPath: string): Promise<boolean> {
