@@ -66,13 +66,6 @@ entryPoints:
 
 # ── Providers ────────────────────────────────────────────────────────────────
 providers:
-  # Docker provider: tự động discover services từ labels
-  docker:
-    endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false # Chỉ expose service có label traefik.enable=true
-    network: internal_net # Network mặc định để Traefik giao tiếp với services
-    watch: true # Hot-reload khi có container mới
-
   # File provider: cấu hình động (middlewares, routing rules)
   file:
     filename: "/etc/traefik/dynamic.yml"
