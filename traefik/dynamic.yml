@@ -29,8 +29,7 @@ http:
         average: 100
         burst: 200
         sourceCriterion:
-          ipStrategy:
-            depth: 1
+          ipStrategy: {} # [SEC-03] Uses direct client TCP RemoteAddr to prevent X-Forwarded-For spoofing
 
     # ── 3. Request ID Injection ────────────────────────────────────────────────
     request-id:
@@ -39,12 +38,12 @@ http:
           X-Gateway: "Traefik-v3" # Traefik tự sinh UUIDv4 nếu client chưa gửi
 
     # ── 4. Gateway Secret Injection ───────────────────────────────────────────
-    # Được inject động thông qua Docker labels: traefik.http.middlewares.inject-gateway-secret...
-    # dynamic.yml chỉ giữ định nghĩa an toàn chống override
+    # Được inject động thông qua scripts/sync-traefik-config.js hoặc Docker labels
     inject-gateway-secret:
       headers:
         customRequestHeaders:
           X-Gateway: "Traefik-v3"
+          X-Gateway-Secret: "ppe_gateway_internal_secret_change_in_production_32char" # [SEC-04] Default sync target
 
     # ── 5. Compress Response ──────────────────────────────────────────────────
     compress-response:
