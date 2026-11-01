@@ -24,6 +24,8 @@ volumes:
     driver: local
   ppe_redis_data:
     driver: local
+  ppe_traefik_certs:
+    driver: local
 
 services:
   # ── 1. PostgreSQL 16 (6 Logical Databases) ──────────────────────────────────
@@ -41,6 +43,7 @@ services:
       - ppe_pgdata:/var/lib/postgresql/data
       - ./scripts/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/01-init-multiple-dbs.sql:ro
       - ./scripts/init-uuidv7.sql:/docker-entrypoint-initdb.d/02-init-uuidv7.sql:ro
+      - ./scripts/fix_defaults.sql:/docker-entrypoint-initdb.d/03-fix-defaults.sql:ro
     networks:
       - ppe_infra_net
     healthcheck:
@@ -162,6 +165,7 @@ services:
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ppe_traefik_certs:/certs
     environment:
       GATEWAY_INTERNAL_SECRET: "${GATEWAY_INTERNAL_SECRET:-ppe_gateway_internal_secret_change_in_production_32char}"
     networks:

@@ -22,6 +22,8 @@ volumes:
     driver: local
   ppe_redis_data:
     driver: local
+  ppe_traefik_certs:
+    driver: local
 
 services:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ services:
       - ppe_pgdata:/var/lib/postgresql/data
       - ./scripts/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/01-init-multiple-dbs.sql:ro
       - ./scripts/init-uuidv7.sql:/docker-entrypoint-initdb.d/02-init-uuidv7.sql:ro
+      - ./scripts/fix_defaults.sql:/docker-entrypoint-initdb.d/03-fix-defaults.sql:ro
     networks:
       - ppe_infra_net
     healthcheck:
@@ -162,7 +165,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ppe_traefik_certs:/certs
     networks:
       - ppe_infra_net
     healthcheck:
@@ -184,18 +189,18 @@ services:
     container_name: identity_service
     restart: unless-stopped
     ports:
-      - "9999:9999"
+      - "127.0.0.1:9999:9999"
     volumes:
       - ../smart-ppe-identity-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-identity-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=9999
       - IDENTITY_DATABASE_URL=postgresql://ppe_identity_user:ppe_identity_dev_pass@ppe-postgres:5432/ppe_identity_db?schema=public
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -213,11 +218,11 @@ services:
     container_name: site_service
     restart: unless-stopped
     ports:
-      - "8891:8891"
+      - "127.0.0.1:8891:8891"
     volumes:
       - ../smart-ppe-site-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-site-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8891
@@ -226,7 +231,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -244,11 +249,11 @@ services:
     container_name: camera_service
     restart: unless-stopped
     ports:
-      - "8892:8892"
+      - "127.0.0.1:8892:8892"
     volumes:
       - ../smart-ppe-camera-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-camera-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8892
@@ -257,7 +262,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -275,11 +280,11 @@ services:
     container_name: incident_service
     restart: unless-stopped
     ports:
-      - "8893:8893"
+      - "127.0.0.1:8893:8893"
     volumes:
       - ../smart-ppe-incident-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-incident-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8893
@@ -291,7 +296,7 @@ services:
       - PPE_KAFKA_BROKERS=ppe-kafka:29092
       - MINIO_ENDPOINT=ppe-minio
       - MINIO_PORT=9000
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -311,11 +316,11 @@ services:
     container_name: media_service
     restart: unless-stopped
     ports:
-      - "8890:8890"
+      - "127.0.0.1:8890:8890"
     volumes:
       - ../smart-ppe-media-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-media-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8890
@@ -326,7 +331,7 @@ services:
       - REDIS_PORT=6379
       - S3_ENDPOINT=ppe-minio
       - S3_PORT=9000
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -344,11 +349,11 @@ services:
     container_name: reporting_service
     restart: unless-stopped
     ports:
-      - "8894:8894"
+      - "127.0.0.1:8894:8894"
     volumes:
       - ../smart-ppe-reporting-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-reporting-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8894
@@ -357,7 +362,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:
@@ -375,11 +380,11 @@ services:
     container_name: notification_service
     restart: unless-stopped
     ports:
-      - "8889:8889"
+      - "127.0.0.1:8889:8889"
     volumes:
       - ../smart-ppe-notification-service/keys:/app/keys:ro
     env_file:
-      - ../smart-ppe-notification-service/.env
+      - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=8889
@@ -388,7 +393,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
-      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
       ppe-postgres:

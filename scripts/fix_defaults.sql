@@ -1,3 +1,5 @@
+\c ppe_identity_db
+
 ALTER TABLE "users" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
 ALTER TABLE "roles" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();
 ALTER TABLE "permissions" ALTER COLUMN "id" SET DEFAULT uuid_generate_v7();

@@ -424,6 +424,43 @@ async function runComprehensiveTests() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // 9. TEARDOWN CLEANUP (SEC-20)
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log("\n--- 9. TEARDOWN CLEANUP PHASE ---");
+  if (createdIncidentId) {
+    try {
+      const delInc = await request(8893, `/api/v1/incidents/${createdIncidentId}`, "DELETE", undefined, adminToken);
+      console.log(`[Teardown] Test incident ${createdIncidentId} deleted (status: ${delInc.statusCode})`);
+    } catch (e: any) {
+      console.warn(`[Teardown] Failed to delete incident ${createdIncidentId}: ${e?.message}`);
+    }
+  }
+  if (createdCameraId) {
+    try {
+      const delCam = await request(8892, `/api/v1/cameras/${createdCameraId}`, "DELETE", undefined, adminToken);
+      console.log(`[Teardown] Test camera ${createdCameraId} deleted (status: ${delCam.statusCode})`);
+    } catch (e: any) {
+      console.warn(`[Teardown] Failed to delete camera ${createdCameraId}: ${e?.message}`);
+    }
+  }
+  if (createdZoneId) {
+    try {
+      const delZone = await request(8891, `/api/v1/zones/${createdZoneId}`, "DELETE", undefined, adminToken);
+      console.log(`[Teardown] Test zone ${createdZoneId} deleted (status: ${delZone.statusCode})`);
+    } catch (e: any) {
+      console.warn(`[Teardown] Failed to delete zone ${createdZoneId}: ${e?.message}`);
+    }
+  }
+  if (createdSiteId) {
+    try {
+      const delSite = await request(8891, `/api/v1/sites/${createdSiteId}`, "DELETE", undefined, adminToken);
+      console.log(`[Teardown] Test site ${createdSiteId} deleted (status: ${delSite.statusCode})`);
+    } catch (e: any) {
+      console.warn(`[Teardown] Failed to delete site ${createdSiteId}: ${e?.message}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // FINAL REPORT
   // ─────────────────────────────────────────────────────────────────────────────
   console.log("\n==========================================================================================");
@@ -442,10 +479,14 @@ async function runComprehensiveTests() {
       .forEach((f) => {
         console.log(`  - [${f.service}] ${f.step} | HTTP: ${f.httpCode || "ERR"} | Info: ${f.snippet || f.error}`);
       });
+    process.exit(1);
   } else {
     console.log("🎉 ALL 43 APIS ACROSS ALL 7 MICROSERVICES PASSED PERFECTLY (100% SUCCESS)!");
   }
   console.log("==========================================================================================");
 }
 
-runComprehensiveTests().catch(console.error);
+runComprehensiveTests().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -9,5 +9,11 @@ echo.
 
 echo [1/1] Đang thực thi kiểm thử tích hợp toàn bộ API qua Gateway & Microservices...
 call npx -y tsx scripts/tests/test_all_apis_comprehensive.ts
+set TEST_EXIT_CODE=%ERRORLEVEL%
+if %TEST_EXIT_CODE% neq 0 (
+    echo.
+    echo ❌ KIỂM THỬ THẤT BẠI với mã lỗi %TEST_EXIT_CODE%!
+    exit /b %TEST_EXIT_CODE%
+)
 
 pause
