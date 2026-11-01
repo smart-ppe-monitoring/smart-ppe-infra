@@ -32,7 +32,8 @@ http:
         average: 100
         burst: 200
         sourceCriterion:
-          ipStrategy: {} # [SEC-03] Uses direct client TCP RemoteAddr to prevent X-Forwarded-For spoofing
+          ipStrategy:
+            depth: 0 # [SEC-03] Direct client TCP RemoteAddr (depth: 0) to prevent X-Forwarded-For spoofing
 
     # ── 3. Request ID Injection ────────────────────────────────────────────────
     request-id:
@@ -195,7 +196,6 @@ http:
   # ── Servers Transports [SEC-12] ───────────────────────────────────────────
   serversTransports:
     streaming-transport:
-      idleConnTimeout: 0s
       forwardingTimeouts:
         responseHeaderTimeout: 0s
         idleConnTimeout: 0s

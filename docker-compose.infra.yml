@@ -168,9 +168,11 @@ services:
       - "--providers.file.filename=/etc/traefik/dynamic.yml"
       - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
       - "--ping=true"
     ports:
       - "80:80"
+      - "443:443"
       - "127.0.0.1:8080:8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"
