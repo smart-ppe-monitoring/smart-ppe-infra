@@ -23,6 +23,7 @@ function request(
     const dataString = postData ? JSON.stringify(postData) : undefined;
     const headers: http.OutgoingHttpHeaders = {
       Accept: "application/json",
+      "x-gateway-secret": process.env.GATEWAY_INTERNAL_SECRET || "ppe_gateway_internal_secret_change_in_production_32char",
     };
 
     if (dataString) {

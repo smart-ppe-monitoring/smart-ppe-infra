@@ -47,7 +47,7 @@ http:
       headers:
         customRequestHeaders:
           X-Gateway: "Traefik-v3"
-          X-Gateway-Secret: "ppe_gateway_internal_secret_change_in_production_32char" # [SEC-04] Default sync target
+          X-Gateway-Secret: "7rr7RqFb3SgzU38ysHYS8dnbqrO2zT41" # [SEC-04] Default sync target
 
     # ── 5. Compress Response ──────────────────────────────────────────────────
     compress-response:
