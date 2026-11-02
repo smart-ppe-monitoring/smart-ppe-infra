@@ -205,7 +205,7 @@ http:
     site-service:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8891"
+          - url: "http://site-service:8891"
 
     camera-service:
       loadBalancer:
@@ -213,12 +213,12 @@ http:
         responseForwarding:
           flushInterval: "100ms"
         servers:
-          - url: "http://host.docker.internal:8892"
+          - url: "http://camera-service:8892"
 
     incident-service:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8893"
+          - url: "http://incident-service:8893"
 
     notification-service:
       loadBalancer:
@@ -226,22 +226,22 @@ http:
         responseForwarding:
           flushInterval: "100ms"
         servers:
-          - url: "http://host.docker.internal:8889"
+          - url: "http://notification-service:8889"
 
     reporting-service:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8894"
+          - url: "http://reporting-service:8894"
 
     media-service:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8890"
+          - url: "http://media-service:8890"
 
     app-api:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:9999"
+          - url: "http://identity-service:9999"
 
 # ── TLS Options ──────────────────────────────────────────────────────────────
 tls:
