@@ -15,7 +15,7 @@ global:
 # BẮT BUỘC tắt dashboard.insecure trong production
 api:
   dashboard: true
-  insecure: false # Tắt insecure dashboard trong production. Chỉ bật trong traefik.dev.yml
+  insecure: true
 
 # ── Ping Healthcheck ─────────────────────────────────────────────────────────
 ping: {}
@@ -42,12 +42,13 @@ accessLog:
 entryPoints:
   web:
     address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true
+    # Không redirect HTTP -> HTTPS trong dev (cho phép truy cập http://localhost:80 trực tiếp)
+    # http:
+    #   redirections:
+    #     entryPoint:
+    #       to: websecure
+    #       scheme: https
+    #       permanent: true
 
   websecure:
     address: ":443"
