@@ -318,6 +318,7 @@ services:
       - PPE_KAFKA_BROKERS=ppe-kafka:29092
       - MINIO_ENDPOINT=ppe-minio
       - MINIO_PORT=9000
+      - PPE_MINIO_ENDPOINT=http://ppe-minio:9000
       - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
