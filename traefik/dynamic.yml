@@ -103,7 +103,7 @@ http:
 
     # 2. Camera Service (:8892)
     cameras:
-      rule: "(PathPrefix(`/api/v1/cameras`) && !PathPrefix(`/api/v1/cameras/internal`)) || PathPrefix(`/api/v1/camera-streams`)"
+      rule: "(PathPrefix(`/api/v1/cameras`) && !PathRegexp(`^/api/v1/(?i:cameras/internal)`)) || PathPrefix(`/api/v1/camera-streams`)"
       entryPoints:
         - web
       service: camera-service
@@ -117,7 +117,7 @@ http:
 
     # 3. Incident Service (:8893)
     incidents:
-      rule: "PathPrefix(`/api/v1/incidents`) || PathPrefix(`/api/v1/evidences`)"
+      rule: "(PathPrefix(`/api/v1/incidents`) && !PathRegexp(`^/api/v1/(?i:incidents/internal)`)) || PathPrefix(`/api/v1/evidences`)"
       entryPoints:
         - web
       service: incident-service
@@ -131,7 +131,7 @@ http:
 
     # 4. Notification Service (:8889)
     notifications:
-      rule: "PathPrefix(`/api/v1/notifications`)"
+      rule: "PathPrefix(`/api/v1/notifications`) && !PathRegexp(`^/api/v1/(?i:notifications/internal)`)"
       entryPoints:
         - web
       service: notification-service
@@ -173,7 +173,7 @@ http:
 
     # 7. Identity & Core API Catch-All (:9999) - Auth, Users, RBAC, System, Docs, Health
     app-api:
-      rule: "(PathPrefix(`/api/v1`) && !PathPrefix(`/api/v1/cameras/internal`) && !PathPrefix(`/api/v1/integration/ai-vision`)) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
+      rule: "(PathPrefix(`/api/v1`) && !PathRegexp(`^/api/v1/(?i:cameras/internal|incidents/internal|notifications/internal|users/internal|integration/ai-vision)`)) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
       entryPoints:
         - web
       service: app-api
