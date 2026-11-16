@@ -111,6 +111,26 @@ services:
       retries: 5
       start_period: 20s
 
+  # ── 3b. Kafka Topic Init (one-shot vì KAFKA_AUTO_CREATE_TOPICS_ENABLE=false) ─
+  ppe-kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ppe_kafka_init
+    restart: "no"
+    depends_on:
+      ppe-kafka:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - >
+        kafka-topics --bootstrap-server ppe-kafka:29092
+        --create --if-not-exists
+        --topic ppe.violation.detected
+        --partitions 3
+        --replication-factor 1
+    networks:
+      - ppe_infra_net
+
   # ── 4. Kafka UI Console ────────────────────────────────────────────────────
   ppe-kafka-ui:
     image: provectuslabs/kafka-ui:latest

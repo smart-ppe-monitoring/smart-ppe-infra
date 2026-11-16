@@ -101,7 +101,7 @@ http:
 
     # 2. Camera Service (:8892)
     cameras:
-      rule: "PathPrefix(`/api/v1/cameras`) || PathPrefix(`/api/v1/camera-streams`)"
+      rule: "(PathPrefix(`/api/v1/cameras`) && !PathPrefix(`/api/v1/cameras/internal`)) || PathPrefix(`/api/v1/camera-streams`)"
       entryPoints:
         - web
         - websecure
@@ -186,7 +186,7 @@ http:
 
     # 7. Identity & Core API Catch-All (:9999) - Auth, Users, RBAC, System, Docs, Health
     app-api:
-      rule: "PathPrefix(`/api/v1`) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
+      rule: "(PathPrefix(`/api/v1`) && !PathPrefix(`/api/v1/cameras/internal`) && !PathPrefix(`/api/v1/integration/ai-vision`)) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
       entryPoints:
         - web
         - websecure

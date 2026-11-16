@@ -9,6 +9,7 @@ interface ServiceDef {
   dir: string;
   port: number;
   healthPath: string;
+  command?: string;
 }
 
 const SERVICES: ServiceDef[] = [
@@ -19,6 +20,13 @@ const SERVICES: ServiceDef[] = [
   { name: "CAMERA", dir: "smart-ppe-camera-service", port: 8892, healthPath: "/health" },
   { name: "INCIDENT", dir: "smart-ppe-incident-service", port: 8893, healthPath: "/health" },
   { name: "REPORTING", dir: "smart-ppe-reporting-service", port: 8894, healthPath: "/health" },
+  {
+    name: "AI_VISION",
+    dir: "smart-ppe-ai-service",
+    port: 8000,
+    healthPath: "/health",
+    command: "python -m uvicorn app.server:app --host 127.0.0.1 --port 8000",
+  },
 ];
 
 const children: { name: string; proc: ChildProcess }[] = [];
@@ -119,20 +127,20 @@ function checkHealth(port: number, healthPath: string): Promise<boolean> {
 
 async function startAll() {
   console.log("==============================================================================");
-  console.log("  🚀 SMART PPE MONITORING - KHỞI CHẠY 7 MICROSERVICES SONG SONG");
+  console.log("  🚀 SMART PPE MONITORING - KHỞI CHẠY 8 MICROSERVICES & AI VISION SONG SONG");
   console.log("==============================================================================");
   console.log(`[ORCHESTRATOR] Thư mục gốc Workspace: ${workspaceRoot}`);
   console.log(`[ORCHESTRATOR] Thư mục Hạ tầng Infra: ${infraDir}\n`);
 
   await ensureInfra();
 
-  console.log("\n[ORCHESTRATOR] Đang khởi động đồng thời 7 microservices...");
+  console.log("\n[ORCHESTRATOR] Đang khởi động đồng thời 8 microservices...");
 
   for (const svc of SERVICES) {
     const svcDir = path.resolve(workspaceRoot, svc.dir);
+    const launchCmd = svc.command || "pnpm dev";
 
-    // Chạy pnpm dev trong từng service
-    const proc = spawn("cmd.exe", ["/c", "pnpm", "dev"], {
+    const proc = spawn("cmd.exe", ["/c", launchCmd], {
       cwd: svcDir,
       stdio: "pipe",
       env: { ...process.env, FORCE_COLOR: "1" },
@@ -159,7 +167,7 @@ async function startAll() {
     });
   }
 
-  console.log("\n[ORCHESTRATOR] Đang đợi tất cả 7 dịch vụ hoàn tất khởi động (Healthcheck)...");
+  console.log(`\n[ORCHESTRATOR] Đang đợi tất cả ${SERVICES.length} dịch vụ hoàn tất khởi động (Healthcheck)...`);
 
   const startTime = Date.now();
   const maxWaitMs = 60000;
@@ -191,6 +199,7 @@ async function startAll() {
       console.log("  • Media Service:            http://localhost:8890");
       console.log("  • Reporting Service:        http://localhost:8894");
       console.log("  • Notification Service:     http://localhost:8889");
+      console.log("  • AI Vision Live Engine:    http://localhost:8000");
       console.log("  • Kafka UI Console:         http://localhost:8088");
       console.log("  • MinIO Console:            http://localhost:9001");
       console.log("==============================================================================");

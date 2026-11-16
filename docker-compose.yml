@@ -113,6 +113,26 @@ services:
       retries: 5
       start_period: 20s
 
+  # ── 3b. Kafka Topic Init (one-shot vì KAFKA_AUTO_CREATE_TOPICS_ENABLE=false) ─
+  ppe-kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ppe_kafka_init
+    restart: "no"
+    depends_on:
+      ppe-kafka:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - >
+        kafka-topics --bootstrap-server ppe-kafka:29092
+        --create --if-not-exists
+        --topic ppe.violation.detected
+        --partitions 3
+        --replication-factor 1
+    networks:
+      - ppe_infra_net
+
   # ── 4. Kafka UI Console ────────────────────────────────────────────────────
   ppe-kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -282,6 +302,7 @@ services:
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
       - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
@@ -316,8 +337,11 @@ services:
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - PPE_KAFKA_BROKERS=ppe-kafka:29092
-      - MINIO_ENDPOINT=ppe-minio
-      - MINIO_PORT=9000
+      - KAFKA_ENABLED=${INCIDENT_KAFKA_ENABLED:-true}
+      - CAMERA_SERVICE_URL=http://camera-service:8892
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      - MINIO_ENDPOINT=http://ppe-minio:9000
+      - PPE_MINIO_ENDPOINT=http://ppe-minio:9000
       - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
@@ -325,6 +349,8 @@ services:
         condition: service_healthy
       ppe-kafka:
         condition: service_healthy
+      ppe-kafka-init:
+        condition: service_completed_successfully
       identity-service:
         condition: service_started
     networks:
@@ -430,5 +456,59 @@ services:
         condition: service_healthy
       identity-service:
         condition: service_started
+    networks:
+      - ppe_infra_net
+
+  # ── 14. AI Vision Live Service (:8000) ─────────────────────────────────────
+  ai-service:
+    build:
+      context: ../smart-ppe-ai-service
+      dockerfile: Dockerfile
+    container_name: ai_service
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 2.0
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ../smart-ppe-identity-service/keys/public.key.pem:/app/keys/public.key.pem:ro
+    env_file:
+      - .env
+    environment:
+      - PORT=8000
+      - BACKEND_BASE_URL=http://incident-service:8893
+      - INCIDENT_SERVICE_URL=http://incident-service:8893
+      - CAMERA_SERVICE_URL=http://camera-service:8892
+      - IDENTITY_SERVICE_URL=http://identity-service:9999
+      - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - JWT_PUBLIC_KEY_PATH=/app/keys/public.key.pem
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:-}
+      - KAFKA_ENABLED=${AI_KAFKA_ENABLED:-true}
+      - KAFKA_BROKER=ppe-kafka:29092
+      - MINIO_ENDPOINT=ppe-minio:9000
+      - MINIO_ACCESS_KEY=${PPE_MINIO_ROOT_USER:-minio_admin}
+      - MINIO_SECRET_KEY=${PPE_MINIO_ROOT_PASSWORD:-minio_admin_secret}
+      - MINIO_SECURE=false
+      - MINIO_BUCKET=${PPE_MINIO_BUCKET_EVIDENCES:-ppe-evidences}
+      - LIVE_DISPATCH_ENABLED=${LIVE_DISPATCH_ENABLED:-true}
+      - AI_AUTO_SYNC_ENABLED=${AI_AUTO_SYNC_ENABLED:-true}
+      - AI_CAMERA_SYNC_INTERVAL_S=${AI_CAMERA_SYNC_INTERVAL_S:-15}
+      - LIVE_MAX_SESSIONS=${LIVE_MAX_SESSIONS:-16}
+      - AI_ALLOWED_HOSTS=${AI_ALLOWED_HOSTS:-localhost,127.0.0.1,ai-service}
+      - LIVE_ALLOWED_RTSP_HOSTS=${LIVE_ALLOWED_RTSP_HOSTS:-}
+    depends_on:
+      identity-service:
+        condition: service_started
+      camera-service:
+        condition: service_started
+      incident-service:
+        condition: service_started
+      ppe-kafka:
+        condition: service_healthy
+      ppe-kafka-init:
+        condition: service_completed_successfully
+      ppe-minio:
+        condition: service_healthy
     networks:
       - ppe_infra_net
