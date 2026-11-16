@@ -7,3 +7,5 @@ acme.json
 data/
 .DS_Store
 Thumbs.db
+keys/
+
