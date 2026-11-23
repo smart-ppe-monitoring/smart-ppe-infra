@@ -234,6 +234,7 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=9999
       - IDENTITY_DATABASE_URL=postgresql://ppe_identity_user:ppe_identity_dev_pass@ppe-postgres:5432/ppe_identity_db?schema=public
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
@@ -268,6 +269,7 @@ services:
       - SITE_PORT=8891
       - SITE_DATABASE_URL=postgresql://ppe_site_user:ppe_site_dev_pass@ppe-postgres:5432/ppe_site_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
@@ -301,6 +303,7 @@ services:
       - CAMERA_PORT=8892
       - CAMERA_DATABASE_URL=postgresql://ppe_camera_user:ppe_camera_dev_pass@ppe-postgres:5432/ppe_camera_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
@@ -335,6 +338,7 @@ services:
       - INCIDENT_PORT=8893
       - INCIDENT_DATABASE_URL=postgresql://ppe_incident_user:ppe_incident_dev_pass@ppe-postgres:5432/ppe_incident_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - PPE_KAFKA_BROKERS=ppe-kafka:29092
@@ -379,6 +383,7 @@ services:
       - MEDIA_PORT=8890
       - MEDIA_DATABASE_URL=postgresql://ppe_media_user:ppe_media_dev_pass@ppe-postgres:5432/ppe_media_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - S3_ENDPOINT=http://ppe-minio:9000
@@ -415,6 +420,7 @@ services:
       - REPORTING_PORT=8894
       - REPORTING_DATABASE_URL=postgresql://ppe_reporting_user:ppe_reporting_dev_pass@ppe-postgres:5432/ppe_reporting_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
@@ -448,6 +454,7 @@ services:
       - NOTIFICATION_PORT=8889
       - NOTIFICATION_DATABASE_URL=postgresql://ppe_notification_user:ppe_notification_dev_pass@ppe-postgres:5432/ppe_notification_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
       - IDENTITY_SERVICE_URL=http://identity-service:9999
