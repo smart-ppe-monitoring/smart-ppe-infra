@@ -89,7 +89,7 @@ http:
   routers:
     # 1. Site Service (:8891)
     sites:
-      rule: "PathPrefix(`/api/v1/sites`) || PathPrefix(`/api/v1/zones`) || PathPrefix(`/api/v1/restricted-areas`) || PathPrefix(`/api/v1/safety-rules`)"
+      rule: "PathPrefix(`/api/v1/sites`) || PathPrefix(`/api/v1/zones`) || PathPrefix(`/api/v1/restricted-areas`) || (PathPrefix(`/api/v1/safety-rules`) && !PathRegexp(`^/api/v1/(?i:safety-rules/internal)`))"
       entryPoints:
         - web
       service: site-service
@@ -145,7 +145,7 @@ http:
 
     # 5. Reporting Service (:8894)
     reporting:
-      rule: "PathPrefix(`/api/v1/reports`) || PathPrefix(`/api/v1/statistics`) || PathPrefix(`/api/v1/ai-models`)"
+      rule: "PathPrefix(`/api/v1/reports`) || PathPrefix(`/api/v1/statistics`) || (PathPrefix(`/api/v1/ai-models`) && !PathRegexp(`^/api/v1/(?i:ai-models/internal)`))"
       entryPoints:
         - web
       service: reporting-service
@@ -173,7 +173,7 @@ http:
 
     # 7. Identity & Core API Catch-All (:9999) - Auth, Users, RBAC, System, Docs, Health
     app-api:
-      rule: "(PathPrefix(`/api/v1`) && !PathRegexp(`^/api/v1/(?i:cameras/internal|incidents/internal|notifications/internal|users/internal|integration/ai-vision)`)) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
+      rule: "(PathPrefix(`/api/v1`) && !PathRegexp(`^/api/v1/(?i:cameras/internal|incidents/internal|notifications/internal|users/internal|safety-rules/internal|ai-models/internal|integration/ai-vision)`)) || PathPrefix(`/.well-known`) || PathPrefix(`/api/docs`)"
       entryPoints:
         - web
       service: app-api

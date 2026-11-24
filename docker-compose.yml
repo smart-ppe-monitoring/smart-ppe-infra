@@ -269,6 +269,9 @@ services:
       - SITE_PORT=8891
       - SITE_DATABASE_URL=postgresql://ppe_site_user:ppe_site_dev_pass@ppe-postgres:5432/ppe_site_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - CAMERA_SERVICE_URL=http://camera-service:8892
+      - REPORTING_SERVICE_URL=http://reporting-service:8894
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
       - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
@@ -338,6 +341,7 @@ services:
       - INCIDENT_PORT=8893
       - INCIDENT_DATABASE_URL=postgresql://ppe_incident_user:ppe_incident_dev_pass@ppe-postgres:5432/ppe_incident_db?schema=public
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
+      - IDENTITY_SERVICE_URL=http://identity-service:9999
       - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
@@ -423,6 +427,7 @@ services:
       - REDIS_ENABLED=true
       - REDIS_HOST=app_redis
       - REDIS_PORT=6379
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
       - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set}
       - TRUST_PROXY=1
     depends_on:
@@ -494,6 +499,7 @@ services:
       - BACKEND_BASE_URL=http://incident-service:8893
       - INCIDENT_SERVICE_URL=http://incident-service:8893
       - CAMERA_SERVICE_URL=http://camera-service:8892
+      - SITE_SERVICE_URL=http://site-service:8891
       - IDENTITY_SERVICE_URL=http://identity-service:9999
       - AUTH_JWKS_URL=http://identity-service:9999/.well-known/jwks.json
       - JWT_PUBLIC_KEY_PATH=/app/keys/public.key.pem
@@ -516,6 +522,8 @@ services:
       identity-service:
         condition: service_started
       camera-service:
+        condition: service_started
+      site-service:
         condition: service_started
       incident-service:
         condition: service_started
